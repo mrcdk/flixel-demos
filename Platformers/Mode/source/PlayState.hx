@@ -10,7 +10,19 @@ import flixel.group.FlxGroup;
 import flixel.group.FlxSpriteGroup;
 import flixel.text.FlxText;
 import flixel.tile.FlxTilemap;
+import openfl.Assets;
 import openfl.display.FPS;
+import openfl.filters.BitmapFilter;
+#if true
+import openfl.filters.BlurFilter;
+import openfl.filters.ColorMatrixFilter;
+import openfl.filters.ConvolutionFilter;
+import openfl.filters.GlowFilter;
+import openfl.filters.ShaderFilter;
+#end
+import openfl.geom.ColorTransform;
+import openfl.geom.Matrix;
+import openfl.geom.Rectangle;
 import openfl.Lib;
 
 /**
@@ -49,6 +61,10 @@ class PlayState extends FlxState
 	// Just to prevent weirdness during level transition
 	private var _fading:Bool;
 	
+	var vhsShader:VhsShader;
+	
+	var mainCameraFilters:Array<BitmapFilter>;
+	var objectsCameraFilters:Array<BitmapFilter>;
 	/**
 	 * Function that is called up when to state is created to set it up. 
 	 */
@@ -56,6 +72,22 @@ class PlayState extends FlxState
 	{
 		#if !FLX_NO_MOUSE
 		FlxG.mouse.visible = false;
+		#end
+		var detectEdges:Array<Float> = [0, 1, 0, 1, -4, 1, 0, 1, 0];
+		var invert:Array<Float> = [ 
+			-1, 0, 0, 0, 255,
+			0, -1, 0, 0, 255,
+			0, 0, -1, 0, 255,
+			0, 0, 0, 1, 0
+		];
+		
+		#if (!flash  && openfl_next)
+		vhsShader = new VhsShader();
+		vhsShader.iGlobalTime = 0;
+		vhsShader.uMagnitude = 4;
+		mainCameraFilters    = [new ShaderFilter(vhsShader), new ShaderFilter(new ScanlineShader())];
+		objectsCameraFilters = [new ConvolutionFilter(3, 3, detectEdges)];
+		FlxG.game.setFilters(mainCameraFilters);
 		#end
 		
 		// Here we are creating a pool of 100 little metal bits that can be exploded.
@@ -231,6 +263,7 @@ class PlayState extends FlxState
 		super.destroy();
 	}
 
+	var applyFilters = true;
 	/**
 	 * Function that is called once every frame.
 	 */
@@ -330,6 +363,15 @@ class PlayState extends FlxState
 			
 			_score.text = Std.string(Reg.score);
 		}
+		
+		#if !FLX_NO_KEYBOARD
+		if (FlxG.keys.justPressed.F) {
+			applyFilters = !applyFilters;
+			FlxG.game.enableFilters = applyFilters;
+		}
+		#end
+		vhsShader.iGlobalTime = FlxG.game.ticks / 1000;
+		vhsShader.uMagnitude = FlxG.timeScale;
 		
 		// Escape to the main menu
 		#if !FLX_NO_KEYBOARD
@@ -488,6 +530,7 @@ class PlayState extends FlxState
 			var ratio:Float = FlxCamera.defaultZoom / 2;
 			var camera:FlxCamera = new FlxCamera(Math.floor(ratio * (10 + (_spawners.length - 1) * 32)), Math.floor(ratio * 10), 24, 24, ratio);
 			camera.follow(sp, NO_DEAD_ZONE);
+			camera.setFilters(objectsCameraFilters);
 			FlxG.cameras.add(camera);
 		}
 	}
